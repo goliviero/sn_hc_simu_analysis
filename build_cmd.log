@@ -1,6 +1,0 @@
-do_falaise_setup
-
-cmake \
-    -GNinja \
-     -DBOOST_ROOT:PATH=${SW_WORK_DIR}/cadfaelbrew/ \
-    ../trunk
