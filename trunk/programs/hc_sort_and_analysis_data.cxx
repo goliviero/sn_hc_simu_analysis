@@ -1,20 +1,15 @@
 // hc_sort_and_analysis_data.cxx
 // Standard libraries :
-#include <iostream>
 #include <bitset>
-#include <fstream>
+// #include <iostream>
 
 // Third party:
 // - Boost:
-#include <boost/lexical_cast.hpp>
-#include "boost/filesystem.hpp"
 #include <boost/program_options.hpp>
 
 // - Bayeux/datatools:
 #include <datatools/utils.h>
 #include <datatools/io_factory.h>
-#include <datatools/clhep_units.h>
-#include <datatools/clhep_units.h>
 // - Bayeux/geomtools:
 #include <bayeux/geomtools/manager.h>
 #include <bayeux/geomtools/id_mgr.h>

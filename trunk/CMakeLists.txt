@@ -60,10 +60,23 @@ set(SOURCES
   source/data_statistics_simu.cpp
   )
 
-
-add_executable(hc_sort_and_analysis_data
+set(PROGRAMS
   programs/hc_sort_and_analysis_data.cxx
-  ${HEADERS} ${SOURCES}
+  programs/hc_sort_data.cxx
   )
 
-target_link_libraries(hc_sort_and_analysis_data Falaise::Falaise)
+foreach( progfile ${PROGRAMS} )
+
+  get_filename_component( progname "${progfile}" NAME_WE)
+
+  # To add header if wanted :
+  #set(_programname "fecom-${_programname}")
+
+  add_executable(${progname}
+    ${progfile}
+    ${HEADERS} ${SOURCES}
+    )
+
+target_link_libraries( ${progname} Falaise::Falaise)
+
+endforeach()
