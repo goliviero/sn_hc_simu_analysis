@@ -1,12 +1,19 @@
-// hc_sort_raw_data.cxx
+// hc_sort_and_analysis_data.cxx
 // Standard libraries :
 #include <iostream>
 #include <bitset>
 #include <fstream>
 
+// Third party:
+// - Boost:
+#include <boost/lexical_cast.hpp>
+#include "boost/filesystem.hpp"
+#include <boost/program_options.hpp>
+
 // - Bayeux/datatools:
 #include <datatools/utils.h>
 #include <datatools/io_factory.h>
+#include <datatools/clhep_units.h>
 #include <datatools/clhep_units.h>
 // - Bayeux/geomtools:
 #include <bayeux/geomtools/manager.h>
@@ -23,14 +30,15 @@
 #include <falaise/snemo/geometry/gg_locator.h>
 #include <falaise/snemo/geometry/calo_locator.h>
 
-// Third part :
 // Root :
+#include "TError.h"
 #include "TFile.h"
 #include "TTree.h"
 #include "TH1F.h"
 #include "TH2F.h"
-// Boost :
-#include "boost/filesystem.hpp"
+
+// This project :
+#include "data_statistics_simu.hpp"
 
 int column_to_hc_half_zone(const int & column);
 
@@ -49,82 +57,66 @@ int main( int  argc_ , char **argv_  )
   int error_code = EXIT_SUCCESS;
   datatools::logger::priority logging = datatools::logger::PRIO_FATAL;
 
-  // Parsing arguments
-  int iarg = 1;
-  bool is_input_file   = false;
-  bool is_event_number = false;
-  bool is_output_path  = false;
-  bool is_display      = false;
-  //  bool is_zone         = false;
-  bool is_help         = false;
+  try {
 
-  std::string input_filename;
-  std::string output_path;
-  int arg_event_number  = -1;
-  double calo_threshold = 50;
-  //  int arg_hc_half_zone  = -1;
+    std::vector<std::string> input_filenames; // = "";
+    std::string output_path = "";
+    std::size_t max_events     = 0;
+    bool        is_display     = true;
+    double      calo_threshold_kev  = 0;
 
-  while (iarg < argc_) {
-    std::string arg = argv_[iarg];
-    if (arg == "-i" || arg == "--input")
-      {
-	is_input_file = true;
-	input_filename = argv_[++iarg];
-      }
+    // Parse options:
+    namespace po = boost::program_options;
+    po::options_description opts("Allowed options");
+    opts.add_options()
+      ("help,h", "produce help message")
+      ("debug,d", "debug mode")
+      ("input,i",
+       po::value<std::vector<std::string> >(& input_filenames)->multitoken(),
+       "set a list of input files")
+      ("output,o",
+       po::value<std::string>(& output_path),
+       "set the output path")
+      ("number_events,n",
+       po::value<std::size_t>(& max_events)->default_value(10),
+       "set the maximum number of events")
+      ("calo-threshold,c",
+       po::value<double>(& calo_threshold_kev)->default_value(50),
+       "set the calorimeter threshold in keV")
+      ; // end of options description
 
-    else if (arg == "-op" || arg == "--output-path")
-      {
-	is_output_path = true;
-	output_path = argv_[++iarg];
-      }
+    // Describe command line arguments :
+    po::variables_map vm;
+    po::store(po::command_line_parser(argc_, argv_)
+	      .options(opts)
+	      .run(), vm);
+    po::notify(vm);
 
-    else if (arg == "-n" || arg == "--number")
-      {
-        is_event_number = true;
-	arg_event_number    = atoi(argv_[++iarg]);
-      }
-
-    // else if (arg == "-z" || arg == "--zone")
-    //   {
-    //     is_zone = true;
-    // 	arg_hc_half_zone  = atoi(argv_[++iarg]);
-    //   }
-
-    else if (arg == "-ct" || arg == "--calo-threshold")
-      {
-	calo_threshold = atoi(argv_[++iarg]);
-      }
-
-    else if (arg == "-d" || arg == "--display")
-      {
-	is_display = true;
-      }
-
-    else if (arg =="-h" || arg == "--help")
-      {
-	is_help = true;
-      }
-
-    iarg++;
-  }
-
-  if (is_help)
-    {
-      std::cerr << std::endl << "Goal : Sort raw data file to reduce the number of event / file " << std::endl << std::endl
-		<< "Usage :" << std::endl << std::endl
-		<< "$ BuildProducts/bin/half_commissioning-hc_sort_raw_data [OPTIONS] [ARGUMENTS]" << std::endl << std::endl
-		<< "Allowed options: " << std::endl
-		<< "-h  [ --help ]           produce help message" << std::endl
-		<< "-i  [ --input ]          set an input file" << std::endl
-		<< "-op [ --output path ]    set a path where all files are stored" << std::endl
-		<< "-d  [ --display ]        display things for debug" << std::endl
-		<< "-n  [ --number ]         set the number of events" << std::endl
-		<< "Example : " << std::endl << std::endl;
-      return 0;
+    // Use command line arguments :
+    if (vm.count("help")) {
+      std::cout << "Usage : " << std::endl;
+      std::cout << opts << std::endl;
+      return(1);
     }
 
-  try {
-    std::clog << "INFO : Program sorting raw data file to reduce the number of event / file and produce a TTree in a ROOT file for analysis" << std::endl;
+    // Use command line arguments :
+    else if (vm.count("debug")) {
+      is_display = true;
+    }
+
+    DT_LOG_INFORMATION(logging, "List of input file(s) : ");
+    for (auto file = input_filenames.begin();
+	 file != input_filenames.end();
+	 file++) std::clog << *file << ' ';
+    DT_THROW_IF(input_filenames.size() == 0, std::logic_error, "No input file(s) ! ");
+
+    DT_LOG_INFORMATION(logging, "Output path for files = " + output_path);
+    if (output_path.empty()) {
+      output_path = ".";
+      DT_LOG_INFORMATION(logging, "No output path, default output path is = " + output_path);
+    }
+
+    std::clog << "INFO : Program sorting raw data file to reduce the number of event / file and produce root histograms for analysis simulated data from half commissioning" << std::endl;
 
     std::string manager_config_file;
     manager_config_file = "@falaise:config/snemo/demonstrator/geometry/4.0/manager.conf";
@@ -140,29 +132,17 @@ int main( int  argc_ , char **argv_  )
       }
     my_geom_manager.initialize (manager_config);
 
-    std::string pipeline_simulated_data_filename = "";
-
     // Simulated Data "SD" bank label :
     std::string SD_bank_label = "SD";
-    datatools::fetch_path_with_env(input_filename);
-    if(is_input_file){
-      pipeline_simulated_data_filename = input_filename;
-    }else{
-      // pipeline_simulated_data_filename = "/home/goliviero/software/Falaise/Users/GOliviero/HCAnalysis/trunk/data/Co60-100_row_0_column_0_SD.brio";
-      pipeline_simulated_data_filename = "/sps/nemo/scratch/golivier/software/Falaise/Users/GOliviero/HCAnalysis/trunk/data/Co60-100_row_0_column_0_SD.brio";
-    }
-    std::clog << "INFO : INPUT FILENAME = " << input_filename << std::endl;
-    datatools::fetch_path_with_env(pipeline_simulated_data_filename);
 
-
-    // Vertex in the filename :
-    std::string no_path_no_brio_filename = pipeline_simulated_data_filename;
-    std::size_t found = 0;
-    found = no_path_no_brio_filename.find_last_of("/");
-    no_path_no_brio_filename.erase(0, found+1);
-    found = no_path_no_brio_filename.find(".brio");
-    no_path_no_brio_filename.erase(found, no_path_no_brio_filename.size());
-    std::clog << "INFO : Filename without path and brio extension = " << no_path_no_brio_filename << std::endl;
+    // // Vertex in the filename :
+    // std::string no_path_no_brio_filename = pipeline_simulated_data_filename;
+    // std::size_t found = 0;
+    // found = no_path_no_brio_filename.find_last_of("/");
+    // no_path_no_brio_filename.erase(0, found+1);
+    // found = no_path_no_brio_filename.find(".brio");
+    // no_path_no_brio_filename.erase(found, no_path_no_brio_filename.size());
+    // std::clog << "INFO : Filename without path and brio extension = " << no_path_no_brio_filename << std::endl;
 
     // Locators :
     int32_t my_module_number = 0;
@@ -176,57 +156,52 @@ int main( int  argc_ , char **argv_  )
     gg_locator.set_module_number(my_module_number);
     gg_locator.initialize ();
 
-    // Number of events :
-    int event_number = -1;
-    if (is_event_number) event_number = arg_event_number;
-    else                 event_number = 10;
-
-    std::clog << "INFO : Event number = " << event_number << std::endl;
+    int max_record_total = static_cast<int>(max_events) * static_cast<int>(input_filenames.size());
+    std::clog << "max_record total = " << max_record_total << std::endl;
+    std::clog << "max_events       = " << max_events << std::endl;
 
     // Event reader :
     dpp::input_module reader;
     datatools::properties reader_config;
     reader_config.store ("logging.priority", "debug");
-    reader_config.store ("max_record_total", event_number);
-    reader_config.store ("files.mode", "single");
-    reader_config.store ("files.single.filename", pipeline_simulated_data_filename);
+    reader_config.store("files.mode", "list");
+    reader_config.store("files.list.filenames", input_filenames);
+    reader_config.store("max_record_total", max_record_total);
+    reader_config.store("max_record_per_file", static_cast<int>(max_events));
+    // reader_config.store ("max_record_total", event_number);
+    // reader_config.store ("files.mode", "single");
+    // reader_config.store ("files.single.filename", input_filename);
     reader.initialize_standalone (reader_config);
     datatools::multi_properties iMetadataStore = reader.get_metadata_store();
-    reader.tree_dump(std::clog, "Simulated data reader module");
+    // reader.tree_dump(std::clog, "Simulated data reader module");
 
-    // Output path :
-    if (is_output_path) datatools::fetch_path_with_env(output_path);
-    //else output_path = "/home/goliviero/software/Falaise/Users/GOliviero/HCAnalysis/trunk/output_default/";
-    // CC output path :
-    else output_path = "/sps/nemo/scratch/golivier/software/Falaise/Users/GOliviero/HCAnalysis/trunk/output_default/";
+    // // Create output dir
+    // boost::filesystem::path rootPath(output_path);
+    // boost::system::error_code returnedError;
+    // boost::filesystem::create_directories(rootPath, returnedError);
+    // DT_THROW_IF(returnedError, std::logic_error, "Path : " + output_path + " was not created ! ");
+    // std::clog << "INFO : OUTPUT PATH = " << output_path << std::endl;
 
-    // Create output dir
-    boost::filesystem::path rootPath(output_path);
-    boost::system::error_code returnedError;
-    boost::filesystem::create_directories(rootPath, returnedError);
-    DT_THROW_IF(returnedError, std::logic_error, "Path : " + output_path + " was not created ! ");
-    std::clog << "INFO : OUTPUT PATH = " << output_path << std::endl;
+    // std::string analysis_path = output_path + "analysis/";
+    // std::clog << "INFO : ANALYSIS PATH = " << analysis_path << std::endl;
 
-    std::string analysis_path = output_path + "analysis/";
-    std::clog << "INFO : ANALYSIS PATH = " << analysis_path << std::endl;
+    // std::string sorted_path = output_path + "sorted_raw_data/";
+    // std::clog << "INFO : SORTED PATH = " << sorted_path << std::endl;
 
-    std::string sorted_path = output_path + "sorted_raw_data/";
-    std::clog << "INFO : SORTED PATH = " << sorted_path << std::endl;
-    
-    std::string other_brio_files_path = analysis_path + "other_brio_files/";
-    std::clog << "INFO : OTHER BRIO FILES PATH = " << other_brio_files_path << std::endl;
-  
-    boost::filesystem::path rootPath1(analysis_path);
-    boost::filesystem::create_directories(rootPath1, returnedError);
-    DT_THROW_IF(returnedError, std::logic_error, "Path : " + analysis_path + " was not created ! ");
+    // std::string other_brio_files_path = analysis_path + "other_brio_files/";
+    // std::clog << "INFO : OTHER BRIO FILES PATH = " << other_brio_files_path << std::endl;
 
-    boost::filesystem::path rootPath2(sorted_path);
-    boost::filesystem::create_directories(rootPath2, returnedError);
-    DT_THROW_IF(returnedError, std::logic_error, "Path : " + sorted_path + " was not created ! ");
+    // boost::filesystem::path rootPath1(analysis_path);
+    // boost::filesystem::create_directories(rootPath1, returnedError);
+    // DT_THROW_IF(returnedError, std::logic_error, "Path : " + analysis_path + " was not created ! ");
 
-    boost::filesystem::path rootPath3(other_brio_files_path);
-    boost::filesystem::create_directories(rootPath3, returnedError);
-    DT_THROW_IF(returnedError, std::logic_error, "Path : " + other_brio_files_path + " was not created ! ");
+    // boost::filesystem::path rootPath2(sorted_path);
+    // boost::filesystem::create_directories(rootPath2, returnedError);
+    // DT_THROW_IF(returnedError, std::logic_error, "Path : " + sorted_path + " was not created ! ");
+
+    // boost::filesystem::path rootPath3(other_brio_files_path);
+    // boost::filesystem::create_directories(rootPath3, returnedError);
+    // DT_THROW_IF(returnedError, std::logic_error, "Path : " + other_brio_files_path + " was not created ! ");
 
     // Event record :
     datatools::things ER;
@@ -274,7 +249,7 @@ int main( int  argc_ , char **argv_  )
     //==============================================//
 
     // Name of sorted (matching rules) SD output file :
-    std::string sorted_sd_brio = sorted_path + no_path_no_brio_filename + "_match_rules.brio";
+    std::string sorted_sd_brio = output_path + "match_rules.brio";
 
     // Event writer for sorted SD :
     dpp::output_module sorted_writer;
@@ -286,7 +261,7 @@ int main( int  argc_ , char **argv_  )
     sorted_writer.initialize_standalone(sorted_writer_config);
 
     // Name of full track (9 layers hit) SD output file :
-    std::string full_track_sd_brio = other_brio_files_path + no_path_no_brio_filename + "_match_rules_full_track.brio";
+    std::string full_track_sd_brio = output_path + "match_rules_full_track.brio";
 
     // Event writer for full track (9 layers hit) :
     dpp::output_module full_track_writer;
@@ -298,7 +273,7 @@ int main( int  argc_ , char **argv_  )
     full_track_writer.initialize_standalone(full_track_writer_config);
 
     // Name of full track (9 layers hit) SD output file :
-    std::string two_calos_one_full_track_sd_brio = other_brio_files_path + no_path_no_brio_filename + "_match_rules_two_calos_one_full_track.brio";
+    std::string two_calos_one_full_track_sd_brio = output_path + "match_rules_two_calos_one_full_track.brio";
 
     // Event writer for 2 calos one full track (9 layers hit) :
     dpp::output_module two_calos_one_full_track_writer;
@@ -310,12 +285,12 @@ int main( int  argc_ , char **argv_  )
     two_calos_one_full_track_writer.initialize_standalone(two_calos_one_full_track_writer_config);
 
     // Output ROOT file :
-    std::string string_buffer = analysis_path + no_path_no_brio_filename + ".root";
+    std::string string_buffer = output_path + "output_rootfile.root";
     datatools::fetch_path_with_env(string_buffer);
 
     TFile* root_file = new TFile(string_buffer.c_str(), "RECREATE");
-    // TTree* root_tree = new TTree("HC_Analysis", "Half Commissioning analysis");
 
+    string_buffer = "calo_number_TH1F";
     TH1F * calo_number_TH1F = new TH1F(string_buffer.c_str(),
 				       Form("Number of calorimeter touched, zone %i;", hc_half_zone_number),
 				       13, 0, 13);
@@ -475,7 +450,6 @@ int main( int  argc_ , char **argv_  )
 							Form("Calo full track distribution, zone %i;", hc_half_zone_number),
 							20, 0, 20,
 							14, 0, 14);
-
     // Event counter :
     int event_id    = 0;
 
@@ -548,7 +522,7 @@ int main( int  argc_ , char **argv_  )
 		for (std::map<geomtools::geom_id, calo_hit_summary>::iterator it_calo = calo_hit_map.begin();
 		     it_calo != calo_hit_map.end();)
 		  {
-		    if (it_calo->second.energy * 1000 < calo_threshold)
+		    if (it_calo->second.energy * 1000 < calo_threshold_kev)
 		      {
 			it_calo = calo_hit_map.erase(it_calo);
 		      }

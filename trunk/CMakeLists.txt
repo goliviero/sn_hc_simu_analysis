@@ -5,9 +5,26 @@ project(sn_hc_simu_analysis VERSION "0.0.1")
 
 set(PROJECT_CXX_FLAGS "-Wall -Wextra -Wshadow -pedantic -Werror -Wfatal-errors")
 
+# - Versioning
+set(sn_hc_simu_analysis_VERSION_MAJOR 0)
+set(sn_hc_simu_analysis_VERSION_MINOR 1)
+set(sn_hc_simu_analysis_VERSION_PATCH 0)
+set(sn_hc_simu_analysis_VERSION
+  "${sn_hc_simu_analysis_VERSION_MAJOR}.${sn_hc_simu_analysis_VERSION_MINOR}.${sn_hc_simu_analysis_VERSION_PATCH}")
+
 # - Prepend flags to any preexisting ones, allowing user
 #   to supply additional ones or override if required
 set(CMAKE_CXX_FLAGS "${PROJECT_CXX_FLAGS} ${CMAKE_CXX_FLAGS}")
+
+# - C++ Standard
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+#-----------------------------------------------------------------------
+# - Standard UNIX Tool install paths, including relative paths for use
+# by applications requiring resources
+include(GNUInstallDirs)
 
 #-----------------------------------------------------------------------
 # Falaise is the main external dependency, and we know it will additionally
@@ -18,11 +35,15 @@ set(CMAKE_CXX_FLAGS "${PROJECT_CXX_FLAGS} ${CMAKE_CXX_FLAGS}")
 # - ROOT
 # - Geant4
 
-set(Falaise_DIR /sps/nemo/scratch/golivier/software/Falaise/Falaise-install/lib64/cmake/Falaise-3.0.0/)
-set(Bayeux_DIR /sps/nemo/scratch/golivier/software/Bayeux/Bayeux-install/lib64/cmake/Bayeux-3.0.0/)
+find_package(Falaise 3.0.0
+  REQUIRED
+  )
 
-find_package(Falaise 3.0.0 REQUIRED)
+# # Ensure our code can see the Falaise headers
+# include_directories(${FALAISE_BUILD_PREFIX}/include)
+# include_directories(${FALAISE_BUILD_PREFIX}/include/falaise)
 
+include_directories(${PROJECT_SOURCE_DIR}/source)
 
 set(EXECUTABLE_OUTPUT_PATH BuildProducts/bin/)
 
@@ -30,10 +51,19 @@ set(EXECUTABLE_OUTPUT_PATH BuildProducts/bin/)
 # Locate sources and headers for this project
 #
 
-file(GLOB_RECURSE source_files src/*.h)
-file(GLOB_RECURSE source_files src/*.cxx)
-file(GLOB_RECURSE source_files src/*.cpp)
+set(HEADERS
+  source/data_statistics_simu.hpp
+  source/hc_constants.hpp
+  )
 
-add_executable(hc_sort_and_analysis_data source/hc_sort_and_analysis_data.cxx)
+set(SOURCES
+  source/data_statistics_simu.cpp
+  )
+
+
+add_executable(hc_sort_and_analysis_data
+  programs/hc_sort_and_analysis_data.cxx
+  ${HEADERS} ${SOURCES}
+  )
 
 target_link_libraries(hc_sort_and_analysis_data Falaise::Falaise)

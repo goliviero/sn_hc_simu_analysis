@@ -9,6 +9,6 @@ simulation.
 
 Goals of the analysis :
 ---------------------
-- Analyse Co60 source simulation
-- Analyse simulated datas with Argon instead of helium in flsimulate
+- Analyze Co60 source simulation
+- Analyze simulated datas with Argon instead of helium in flsimulate
 - Compare simulation with raw data from half commissioning (data taking : 02/2017)
