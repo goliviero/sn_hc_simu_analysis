@@ -61,7 +61,7 @@ set(SOURCES
   )
 
 set(PROGRAMS
-  programs/hc_sort_and_analysis_data.cxx
+  programs/hc_analysis_data.cxx
   programs/hc_sort_data.cxx
   )
 

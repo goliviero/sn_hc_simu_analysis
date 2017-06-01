@@ -11,12 +11,14 @@
 // // - Bayeux/datatools:
 #include <datatools/utils.h>
 #include <datatools/io_factory.h>
-// #include <datatools/clhep_units.h>
 
 // - Bayeux/geomtools:
 #include <bayeux/geomtools/manager.h>
 #include <bayeux/geomtools/id_mgr.h>
 #include <bayeux/geomtools/id_selector.h>
+
+// - Bayeux/mctools:
+#include <mctools/simulated_data.h>
 
 // - Bayeux/dpp:
 #include <dpp/input_module.h>
@@ -26,8 +28,6 @@
 #include <falaise/falaise.h>
 #include <falaise/snemo/geometry/gg_locator.h>
 #include <falaise/snemo/geometry/calo_locator.h>
-
-
 
 int main( int  argc_ , char **argv_  )
 {
@@ -92,7 +92,6 @@ int main( int  argc_ , char **argv_  )
       output_path = ".";
       DT_LOG_INFORMATION(logging, "No output path, default output path is = " + output_path);
     }
-
 
     std::clog << "INFO : Welcome in the Half Commissioning sorting data program" << std::endl;
     std::clog << "INFO : Program sorting raw data file to reduce the number of event / file" << std::endl;
@@ -159,8 +158,8 @@ int main( int  argc_ , char **argv_  )
     // unsigned int hc_half_zone_number = 0;
 
     // Selection relative to the commissioning mapping (calo + tracker)
-    std::size_t hc_calo_column = 1; // column calo was 1 (but without PMT 0 and 12)
-    std::size_t hc_geiger_row = 4; // row was 4 (but without cell 1 and 8)
+    std::size_t hc_calo_column = 1; // column calo was 1 (real condition : PMT 0 and 12 inactive)
+    std::size_t hc_geiger_row = 4;  // row was 4 (real condition : cell 1 and 8 inactive)
 
     // Id selector rules for half commissioning mapping :
     std::string hc_calo_rules = "category='calorimeter_block' module={0} side={1} column={" + std::to_string(hc_calo_column) + "} row={*} part={*}";
@@ -172,10 +171,9 @@ int main( int  argc_ , char **argv_  )
     hc_calo_selector.initialize(hc_calo_rules);
     if (is_debug) hc_calo_selector.dump(std::clog, "Half commissioning calo selector: ");
 
-
     geomtools::id_selector hc_geiger_selector(my_geom_manager.get_id_mgr());
     hc_geiger_selector.initialize(hc_geiger_rules);
-    if (is_debug) hc_geiger_selector.dump(std::clog, "Half commissionign Geiger selector: ");
+    if (is_debug) hc_geiger_selector.dump(std::clog, "Half commissioning Geiger selector: ");
 
     //============================================//
     //          output file  and writer           //
@@ -193,18 +191,85 @@ int main( int  argc_ , char **argv_  )
     sorted_writer.grab_metadata_store() = iMetadataStore;
     sorted_writer.initialize_standalone(sorted_writer_config);
 
-    // Name of full track (9 layers hit) SD output file :
-    std::string two_calos_one_track_sd_brio = output_path + "match_rules_two_calos_one_track.brio";
+    // Name of sorted (matching rules) SD output file :
+    std::string sorted_with_geiger_brio = output_path + "match_rules_with_geiger.brio";
 
-    // Event writer for 2 calos one track (9 layers hit) :
-    dpp::output_module two_calos_one_track_writer;
-    datatools::properties two_calos_one_track_writer_config;
-    two_calos_one_track_writer_config.store ("logging.priority", "fatal");
-    two_calos_one_track_writer_config.store ("files.mode", "single");
-    two_calos_one_track_writer_config.store ("files.single.filename", two_calos_one_track_sd_brio);
-    two_calos_one_track_writer.grab_metadata_store() = iMetadataStore;
-    two_calos_one_track_writer.initialize_standalone(two_calos_one_track_writer_config);
+    // Event writer for sorted SD :
+    dpp::output_module sorted_with_geiger_writer;
+    datatools::properties sorted_with_geiger_config;
+    sorted_with_geiger_config.store ("logging.priority", "fatal");
+    sorted_with_geiger_config.store ("files.mode", "single");
+    sorted_with_geiger_config.store ("files.single.filename", sorted_with_geiger_brio);
+    sorted_with_geiger_writer.grab_metadata_store() = iMetadataStore;
+    sorted_with_geiger_writer.initialize_standalone(sorted_with_geiger_config);
 
+    // Event counter :
+    int event_id    = 0;
+
+    while (!reader.is_terminated())
+      {
+	DT_LOG_DEBUG(logging, "Event #" + event_id);
+	reader.process(ER);
+
+	bool match_rules_event = false;
+	bool match_rules_with_geiger = false;
+
+	// A plain `mctools::simulated_data' object is stored here :
+	if (ER.has(SD_bank_label) && ER.is_a<mctools::simulated_data>(SD_bank_label))
+	  {
+	    // Access to the "SD" bank with a stored `mctools::simulated_data' :
+	    const mctools::simulated_data & SD = ER.get<mctools::simulated_data>(SD_bank_label);
+
+	    // Main calo hits :
+	    if (SD.has_step_hits("calo"))
+	      {
+		mctools::simulated_data::hit_handle_collection_type BSHC = SD.get_step_hits("calo");
+		if (is_debug) std::clog << "BSCH calo step hits # = " << BSHC.size() << std::endl;
+
+		for (mctools::simulated_data::hit_handle_collection_type::const_iterator i = BSHC.begin();
+		     i != BSHC.end();
+		     i++)
+		  {
+		    const mctools::base_step_hit & BSH = i->get();
+		    // extract the corresponding geom ID:
+		    const geomtools::geom_id & main_calo_gid = BSH.get_geom_id();
+		    if (hc_calo_selector.match(main_calo_gid)) match_rules_event = true;
+
+		  } // end of for i BSHC
+
+	      } // end of if has step hits "calo"
+
+
+	    if (SD.has_step_hits("gg"))
+	      {
+		mctools::simulated_data::hit_handle_collection_type BSHC_gg = SD.get_step_hits("gg");
+		if (is_debug) std::clog << "BSCH geiger step hits # = " << BSHC_gg.size() << std::endl;
+		for (mctools::simulated_data::hit_handle_collection_type::const_iterator i = BSHC_gg.begin();
+		     i != BSHC_gg.end();
+		     i++)
+		  {
+		    const mctools::base_step_hit & BSH = i->get();
+		    if (is_debug) BSH.tree_dump(std::clog, "A Geiger Base Step Hit : ", "INFO : ");
+		    const geomtools::geom_id & geiger_gid = BSH.get_geom_id();
+
+		    if (hc_geiger_selector.match(geiger_gid))
+		      {
+			match_rules_event = true;
+			match_rules_with_geiger = true;
+		      }
+
+		  } // end of i bsh
+	      } // end of if has step hits "gg"
+
+	    if (match_rules_event) sorted_writer.process(ER);
+	    if (match_rules_with_geiger) sorted_with_geiger_writer.process(ER);
+
+	  } // end of if ER has flaged_SD_bank_label
+
+	event_id++;
+
+	ER.clear();
+      } // end of reader is terminated
 
 
     std::clog << "The end." << std::endl;
