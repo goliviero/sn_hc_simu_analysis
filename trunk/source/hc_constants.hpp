@@ -18,10 +18,16 @@
 
 struct hc_constants
 {
-  static const uint16_t NUMBERS_OF_CALO_PER_COLUMN = 13;
-	static const uint16_t NUMBERS_OF_COLUMNS = 20;
+	// Calo :
+  static const uint16_t NUMBER_OF_CALO_PER_COLUMN = 13;
+	static const uint16_t NUMBER_OF_CALO_COLUMNS    = 20;
 
+	// Geiger :
+	static const uint16_t NUMBER_OF_GEIGER_LAYERS = 9;
+	static const uint16_t NUMBER_OF_GEIGER_ROWS   = 113;
 
+	// Electronics :
+	static const std::size_t CALO_COMMISSIONING_HIGH_THRESHOLD_KEV = 15;
 
 };
 

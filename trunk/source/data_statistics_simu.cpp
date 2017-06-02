@@ -28,19 +28,19 @@ void data_statistics_simu::reset()
 void data_statistics_simu::_reset_()
 {
   // Histogram ptr :
-  for (unsigned int icalo = 0; icalo < hc_constants::NUMBERS_OF_CALO_PER_COLUMN; icalo++) {
-    calo_energy_TH1F[icalo] = nullptr;
+  for (unsigned int icalo = 0; icalo < hc_constants::NUMBER_OF_CALO_PER_COLUMN; icalo++) {
+    // calo_energy_TH1F[icalo] = nullptr;
     calo_ht_energy_TH1F[icalo] = nullptr;
-    calo_no_ht_energy_TH1F[icalo] = nullptr;
+    // calo_no_ht_energy_TH1F[icalo] = nullptr;
   }
 
-  calo_distrib_TH2F = nullptr;
+  // calo_distrib_TH2F = nullptr;
   calo_distrib_ht_TH2F = nullptr;
-  calo_distrib_no_ht_TH2F = nullptr;
+  // calo_distrib_no_ht_TH2F = nullptr;
 
-  calo_total_energy_TH1F = nullptr;
+  // calo_total_energy_TH1F = nullptr;
   calo_ht_total_energy_TH1F = nullptr;;
-  calo_no_ht_total_energy_TH1F = nullptr;;
+  // calo_no_ht_total_energy_TH1F = nullptr;;
 
   calo_delta_t_calo_tref_TH1F = nullptr;
 
@@ -69,29 +69,28 @@ void data_statistics_simu::initialize()
 
   // Initialize all histograms :
   std::string string_buffer = "";
-  for (unsigned int icalo = 0; icalo < hc_constants::NUMBERS_OF_CALO_PER_COLUMN; icalo++) {
-    string_buffer = "calo_energy_" + std::to_string(icalo);
-    calo_energy_TH1F[icalo] = new TH1F(string_buffer.c_str(),
-				       Form("Calorimeter energy, row %i", icalo),
-				       1000, 0, 3000);
-
+  for (unsigned int icalo = 0; icalo < hc_constants::NUMBER_OF_CALO_PER_COLUMN; icalo++) {
+    // string_buffer = "calo_energy_" + std::to_string(icalo);
+    // calo_energy_TH1F[icalo] = new TH1F(string_buffer.c_str(),
+    // 				       Form("Calorimeter energy, row %i", icalo),
+    // 				       1000, 0, 3000);
 
     string_buffer = "calo_ht_energy_" + std::to_string(icalo);
     calo_ht_energy_TH1F[icalo] = new TH1F(string_buffer.c_str(),
 				       Form("Calorimeter HT energy, row %i", icalo),
 				       1000, 0, 3000);
 
-    string_buffer = "calo_no_ht_energy_" + std::to_string(icalo);
-    calo_no_ht_energy_TH1F[icalo] = new TH1F(string_buffer.c_str(),
-				       Form("Calorimeter no HT energy, row %i", icalo),
-				       1000, 0, 3000);
+    // string_buffer = "calo_no_ht_energy_" + std::to_string(icalo);
+    // calo_no_ht_energy_TH1F[icalo] = new TH1F(string_buffer.c_str(),
+    // 				       Form("Calorimeter no HT energy, row %i", icalo),
+    // 				       1000, 0, 3000);
   } // end of for icalo
 
-  string_buffer = "calo_distrib_TH2F";
-  calo_distrib_TH2F =  new TH2F(string_buffer.c_str(),
-				Form("All calo distribution"),
-				20, 0, 20,
-				14, 0, 14);
+  // string_buffer = "calo_distrib_TH2F";
+  // calo_distrib_TH2F =  new TH2F(string_buffer.c_str(),
+  // 				Form("All calo distribution"),
+  // 				20, 0, 20,
+  // 				14, 0, 14);
 
   string_buffer = "calo_distrib_ht_TH2F";
   calo_distrib_ht_TH2F =  new TH2F(string_buffer.c_str(),
@@ -99,16 +98,16 @@ void data_statistics_simu::initialize()
 				   20, 0, 20,
 				   14, 0, 14);
 
-  string_buffer = "calo_distrib_no_ht_TH2F";
-  calo_distrib_no_ht_TH2F =  new TH2F(string_buffer.c_str(),
-				      Form("Calo no HT distribution"),
-				      20, 0, 20,
-				      14, 0, 14);
+  // string_buffer = "calo_distrib_no_ht_TH2F";
+  // calo_distrib_no_ht_TH2F =  new TH2F(string_buffer.c_str(),
+  // 				      Form("Calo no HT distribution"),
+  // 				      20, 0, 20,
+  // 				      14, 0, 14);
 
-  string_buffer = "calo_total_energy_TH1F";
-  calo_total_energy_TH1F = new TH1F(string_buffer.c_str(),
-				    Form("Calorimeter total energy"),
-				    1000, 0, 3000);
+  // string_buffer = "calo_total_energy_TH1F";
+  // calo_total_energy_TH1F = new TH1F(string_buffer.c_str(),
+  // 				    Form("Calorimeter total energy"),
+  // 				    1000, 0, 3000);
 
 
   string_buffer = "calo_ht_total_energy_TH1F";
@@ -116,10 +115,10 @@ void data_statistics_simu::initialize()
 				       Form("Calorimeter HT total energy"),
 				       1000, 0, 3000);
 
-  string_buffer = "calo_no_ht_total_energy_TH1F";
-  calo_no_ht_total_energy_TH1F = new TH1F(string_buffer.c_str(),
-					  Form("Calorimeter no HT total energy"),
-					  1000, 0, 3000);
+  // string_buffer = "calo_no_ht_total_energy_TH1F";
+  // calo_no_ht_total_energy_TH1F = new TH1F(string_buffer.c_str(),
+  // 					  Form("Calorimeter no HT total energy"),
+  // 					  1000, 0, 3000);
 
   string_buffer = "calo_delta_t_calo_tref_TH1F";
   calo_delta_t_calo_tref_TH1F = new TH1F(string_buffer.c_str(),

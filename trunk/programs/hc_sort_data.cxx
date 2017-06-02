@@ -180,7 +180,7 @@ int main( int  argc_ , char **argv_  )
     //============================================//
 
     // Name of sorted (matching rules) SD output file :
-    std::string sorted_sd_brio = output_path + "match_rules.brio";
+    std::string sorted_sd_brio = output_path + "output_sorted.brio";
 
     // Event writer for sorted SD :
     dpp::output_module sorted_writer;
@@ -192,7 +192,7 @@ int main( int  argc_ , char **argv_  )
     sorted_writer.initialize_standalone(sorted_writer_config);
 
     // Name of sorted (matching rules) SD output file :
-    std::string sorted_with_geiger_brio = output_path + "match_rules_with_geiger.brio";
+    std::string sorted_with_geiger_brio = output_path + "output_sorted_with_geiger.brio";
 
     // Event writer for sorted SD :
     dpp::output_module sorted_with_geiger_writer;

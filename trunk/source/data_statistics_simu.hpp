@@ -54,20 +54,19 @@ public :
 	// Management :
 	bool initialized;
 
-  // Histograms for simu
+  // Histograms for simulation :
 
-  // Calorimeter :
-  std::array<TH1F *, hc_constants::NUMBERS_OF_CALO_PER_COLUMN> calo_energy_TH1F{};
-  std::array<TH1F *, hc_constants::NUMBERS_OF_CALO_PER_COLUMN> calo_ht_energy_TH1F{};
-  std::array<TH1F *, hc_constants::NUMBERS_OF_CALO_PER_COLUMN> calo_no_ht_energy_TH1F{};
-
-  TH2F * calo_distrib_TH2F;
+  // Calorimeter (only ht in simulation)
+  // std::array<TH1F *, hc_constants::NUMBER_OF_CALO_PER_COLUMN> calo_energy_TH1F{};
+  std::array<TH1F *, hc_constants::NUMBER_OF_CALO_PER_COLUMN> calo_ht_energy_TH1F{};
+  // std::array<TH1F *, hc_constants::NUMBER_OF_CALO_PER_COLUMN> calo_no_ht_energy_TH1F{};
+	//  TH2F * calo_distrib_TH2F;
   TH2F * calo_distrib_ht_TH2F;
-  TH2F * calo_distrib_no_ht_TH2F;
+  // TH2F * calo_distrib_no_ht_TH2F;
 
-  TH1F * calo_total_energy_TH1F;
+  // TH1F * calo_total_energy_TH1F;
   TH1F * calo_ht_total_energy_TH1F;
-  TH1F * calo_no_ht_total_energy_TH1F;
+  // TH1F * calo_no_ht_total_energy_TH1F;
 
   TH1F * calo_delta_t_calo_tref_TH1F;
 
