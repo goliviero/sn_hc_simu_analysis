@@ -26,8 +26,7 @@
 
 // Falaise:
 #include <falaise/falaise.h>
-#include <falaise/snemo/geometry/gg_locator.h>
-#include <falaise/snemo/geometry/calo_locator.h>
+
 
 int main( int  argc_ , char **argv_  )
 {
@@ -39,6 +38,8 @@ int main( int  argc_ , char **argv_  )
 
     std::vector<std::string> input_filenames; // = "";
     std::string output_path = "";
+    std::string calo_mapping_config = "";
+    std::string tracker_mapping_config = "";
     std::size_t max_events  = 0;
     bool is_debug = false;
 
@@ -57,6 +58,12 @@ int main( int  argc_ , char **argv_  )
       ("number_events,n",
        po::value<std::size_t>(& max_events)->default_value(10),
        "set the maximum number of events")
+      ("calo_mapping,C",
+       po::value<std::string>(& calo_mapping_config),
+       "set the calorimeter mapping configuration from a datatools::properties ASCII file")
+      ("tracker_mapping,T",
+       po::value<std::string>(& tracker_mapping_config),
+       "set the tracker mapping configuration from a datatools::properties ASCII file")
       ; // end of options description
 
     // Describe command line arguments :
@@ -115,22 +122,9 @@ int main( int  argc_ , char **argv_  )
     // Simulated Data "SD" bank label :
     std::string SD_bank_label = "SD";
 
-    // Locators :
-    int32_t my_module_number = 0;
-    snemo::geometry::calo_locator calo_locator;
-    calo_locator.set_geo_manager(my_geom_manager);
-    calo_locator.set_module_number(my_module_number);
-    calo_locator.initialize ();
-
-    snemo::geometry::gg_locator gg_locator;
-    gg_locator.set_geo_manager(my_geom_manager);
-    gg_locator.set_module_number(my_module_number);
-    gg_locator.initialize ();
-
     int max_record_total = static_cast<int>(max_events) * static_cast<int>(input_filenames.size());
     std::clog << "max_record total = " << max_record_total << std::endl;
     std::clog << "max_events       = " << max_events << std::endl;
-
 
     // Event reader :
     dpp::input_module reader;
@@ -147,32 +141,31 @@ int main( int  argc_ , char **argv_  )
     // Event record :
     datatools::things ER;
 
-    /********************************************************************/
-    /* DESIGN OF THE SOFT : JUST FOR ZONE 2 FOR THE MOMENT (no need to  */
-    /* simulate all half zones (unefficient) maybe later. TO DO : adapt */
-    /* the software for all half zones (take into account row/column or */
-    /* free spots vertexes (row / column approach needs sometimes to be */
-    /* process 2 times (column 3 4 5 count for zone 0 and 1 for example */
-    /********************************************************************/
+    // Calo and tracker half commissioning mapping configuration :
+    datatools::properties calo_config;
+    if (!calo_mapping_config.empty()) {
+      calo_config.read_configuration(calo_mapping_config);
+    }
 
-    // unsigned int hc_half_zone_number = 0;
-
-    // Selection relative to the commissioning mapping (calo + tracker)
-    std::size_t hc_calo_column = 1; // column calo was 1 (real condition : PMT 0 and 12 inactive)
-    std::size_t hc_geiger_row = 4;  // row was 4 (real condition : cell 1 and 8 inactive)
-
-    // Id selector rules for half commissioning mapping :
-    std::string hc_calo_rules = "category='calorimeter_block' module={0} side={1} column={" + std::to_string(hc_calo_column) + "} row={*} part={*}";
-    // Only column 4 is sensitive because commissioning
-    std::string hc_geiger_rules = "category='drift_cell_core' module={0} side={1} layer={*} row={"
-      + std::to_string(hc_geiger_row) + "}";
+    datatools::properties tracker_config;
+    if (!tracker_mapping_config.empty()) tracker_config.read_configuration(tracker_mapping_config);
 
     geomtools::id_selector hc_calo_selector(my_geom_manager.get_id_mgr());
-    hc_calo_selector.initialize(hc_calo_rules);
+    if (!calo_mapping_config.empty()) {
+      std::ifstream ifile(tracker_mapping_config);
+      bool empty = false;
+      if (ifile.peek() == std::ifstream::traits_type::eof()) empty = true;
+      if (!empty) hc_calo_selector.initialize(calo_config);
+    }
     if (is_debug) hc_calo_selector.dump(std::clog, "Half commissioning calo selector: ");
 
     geomtools::id_selector hc_geiger_selector(my_geom_manager.get_id_mgr());
-    hc_geiger_selector.initialize(hc_geiger_rules);
+    if (!tracker_mapping_config.empty()) {
+      std::ifstream ifile(tracker_mapping_config);
+      bool empty = false;
+      if (ifile.peek() == std::ifstream::traits_type::eof()) empty = true;
+      if (!empty) hc_geiger_selector.initialize(tracker_config);
+    }
     if (is_debug) hc_geiger_selector.dump(std::clog, "Half commissioning Geiger selector: ");
 
     //============================================//
@@ -233,7 +226,9 @@ int main( int  argc_ , char **argv_  )
 		    const mctools::base_step_hit & BSH = i->get();
 		    // extract the corresponding geom ID:
 		    const geomtools::geom_id & main_calo_gid = BSH.get_geom_id();
-		    if (hc_calo_selector.match(main_calo_gid)) match_rules_event = true;
+		    if (hc_calo_selector.is_initialized()) {
+		      if (hc_calo_selector.match(main_calo_gid)) match_rules_event = true;
+		    }
 
 		  } // end of for i BSHC
 
@@ -252,11 +247,13 @@ int main( int  argc_ , char **argv_  )
 		    if (is_debug) BSH.tree_dump(std::clog, "A Geiger Base Step Hit : ", "INFO : ");
 		    const geomtools::geom_id & geiger_gid = BSH.get_geom_id();
 
-		    if (hc_geiger_selector.match(geiger_gid))
-		      {
-			match_rules_event = true;
-			match_rules_with_geiger = true;
-		      }
+		    if (hc_geiger_selector.is_initialized()) {
+		      if (hc_geiger_selector.match(geiger_gid))
+			{
+			  match_rules_event = true;
+			  match_rules_with_geiger = true;
+			}
+		    }
 
 		  } // end of i bsh
 	      } // end of if has step hits "gg"

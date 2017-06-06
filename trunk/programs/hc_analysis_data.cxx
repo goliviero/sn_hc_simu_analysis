@@ -57,8 +57,10 @@ int main( int  argc_ , char **argv_  )
 
     std::vector<std::string> input_filenames; // = "";
     std::string output_path = "";
-    std::size_t max_events     = 0;
-    bool        is_debug     = true;
+    std::string calo_mapping_config = "";
+    std::string tracker_mapping_config = "";
+    std::size_t max_events  = 0;
+    bool        is_debug    = false;
     double      calo_threshold_kev  = 0;
 
     // Parse options:
@@ -79,6 +81,12 @@ int main( int  argc_ , char **argv_  )
       ("calo-threshold,c",
        po::value<double>(& calo_threshold_kev)->default_value(hc_constants::CALO_COMMISSIONING_HIGH_THRESHOLD_KEV),
        "set the calorimeter threshold in keV")
+      ("calo_mapping,C",
+       po::value<std::string>(& calo_mapping_config),
+       "set the calorimeter mapping configuration from a datatools::properties ASCII file")
+      ("tracker_mapping,T",
+       po::value<std::string>(& tracker_mapping_config),
+       "set the tracker mapping configuration from a datatools::properties ASCII file")
       ; // end of options description
 
     // Describe command line arguments :
@@ -160,6 +168,35 @@ int main( int  argc_ , char **argv_  )
     // Event record :
     datatools::things ER;
 
+    // Calo and tracker half commissioning mapping configuration :
+    datatools::properties calo_config;
+    if (!calo_mapping_config.empty()) {
+      calo_config.read_configuration(calo_mapping_config);
+    }
+
+    datatools::properties tracker_config;
+    if (!tracker_mapping_config.empty()) {
+      tracker_config.read_configuration(tracker_mapping_config);
+    }
+
+    geomtools::id_selector hc_calo_selector(my_geom_manager.get_id_mgr());
+    if (!calo_mapping_config.empty()) {
+      std::ifstream ifile(tracker_mapping_config);
+      bool empty = false;
+      if (ifile.peek() == std::ifstream::traits_type::eof()) empty = true;
+      if (!empty)  hc_calo_selector.initialize(calo_config);
+    }
+    if (is_debug) hc_calo_selector.dump(std::clog, "Half commissioning calo selector: ");
+
+    geomtools::id_selector hc_geiger_selector(my_geom_manager.get_id_mgr());
+    if (!tracker_mapping_config.empty()) {
+      std::ifstream ifile(tracker_mapping_config);
+      bool empty = false;
+      if (ifile.peek() == std::ifstream::traits_type::eof()) empty = true;
+      if (!empty) hc_geiger_selector.initialize(tracker_config);
+    }
+    if (is_debug) hc_geiger_selector.dump(std::clog, "Half commissioning Geiger selector: ");
+
     //==============================================//
     //          output files  and writers           //
     //==============================================//
@@ -190,7 +227,7 @@ int main( int  argc_ , char **argv_  )
 
     while (!reader.is_terminated())
       {
-	if(is_debug) std::clog << "INFO : Event #" << event_id << std::endl;
+	DT_LOG_DEBUG(logging, "Event #" << event_id);
 	reader.process(ER);
 
 	bool full_track_event = false;
@@ -211,7 +248,7 @@ int main( int  argc_ , char **argv_  )
 	    if (flaged_SD.has_step_hits("calo"))
 	      {
 		mctools::simulated_data::hit_handle_collection_type BSHC = flaged_SD.get_step_hits("calo");
-		if (is_debug) std::clog << "BSCH calo step hits # = " << BSHC.size() << std::endl;
+		DT_LOG_DEBUG(logging, "BSCH calo step hits # = " << BSHC.size());
 
 		for (mctools::simulated_data::hit_handle_collection_type::const_iterator i = BSHC.begin();
 		     i != BSHC.end();
@@ -221,31 +258,36 @@ int main( int  argc_ , char **argv_  )
 		    // extract the corresponding geom ID:
 		    const geomtools::geom_id & main_calo_gid = BSH.get_geom_id();
 
-		    bool calo_hit_is_in_map = calo_hit_map.find(main_calo_gid) != calo_hit_map.end();
-		    // int column = main_calo_gid.get(2);
-		    // int row = main_calo_gid.get(3);
+		    if (hc_calo_selector.match(main_calo_gid)) {
 
-		    if (!calo_hit_is_in_map)
-		      {
-			// Create a new calo hit and insert in the map
-			calo_hit_summary new_calo_hit;
-			new_calo_hit.geom_id = main_calo_gid;
-			new_calo_hit.energy = BSH.get_energy_deposit();
-			new_calo_hit.time = BSH.get_time_start();
-			new_calo_hit.left_most_hit_position = BSH.get_position_start();
-			calo_hit_map.insert(std::pair<geomtools::geom_id, calo_hit_summary>(main_calo_gid, new_calo_hit));
-		      }
-		    else
-		      {
-			// Update the existing calo hit (add energy and check the time to be the t_start)min)
-			calo_hit_map.find(main_calo_gid)->second.energy+= BSH.get_energy_deposit();
-			if (BSH.get_time_start() < calo_hit_map.find(main_calo_gid)->second.time) calo_hit_map.find(main_calo_gid)->second.time = BSH.get_time_start();
+		      bool calo_hit_is_in_map = calo_hit_map.find(main_calo_gid) != calo_hit_map.end();
+		      //int column = main_calo_gid.get(2);
+		      // int row = main_calo_gid.get(3);
 
-			if (BSH.get_position_start().getX() < calo_hit_map.find(main_calo_gid)->second.left_most_hit_position.getX())
-			  {
-			    calo_hit_map.find(main_calo_gid)->second.left_most_hit_position = BSH.get_position_start();
-			  }
-		      }
+		      if (!calo_hit_is_in_map)
+			{
+			  // Create a new calo hit and insert in the map only if it match commissioning rules
+			  calo_hit_summary new_calo_hit;
+			  new_calo_hit.geom_id = main_calo_gid;
+			  new_calo_hit.energy = BSH.get_energy_deposit();
+			  new_calo_hit.time = BSH.get_time_start();
+			  new_calo_hit.left_most_hit_position = BSH.get_position_start();
+			  calo_hit_map.insert(std::pair<geomtools::geom_id, calo_hit_summary>(main_calo_gid, new_calo_hit));
+			}
+		      else
+			{
+			  // Update the existing calo hit (add energy and check the time to be the t_start)min)
+			  calo_hit_map.find(main_calo_gid)->second.energy+= BSH.get_energy_deposit();
+			  if (BSH.get_time_start() < calo_hit_map.find(main_calo_gid)->second.time) calo_hit_map.find(main_calo_gid)->second.time = BSH.get_time_start();
+
+			  if (BSH.get_position_start().getX() < calo_hit_map.find(main_calo_gid)->second.left_most_hit_position.getX())
+			    {
+			      calo_hit_map.find(main_calo_gid)->second.left_most_hit_position = BSH.get_position_start();
+			    }
+			}
+
+		    } // end of match rules selection
+
 		  } // end of for i BSHC
 
 		// Check if all calo summary hit pass the threshold :
@@ -292,7 +334,7 @@ int main( int  argc_ , char **argv_  )
 		  } // end of ihit
 
 		mctools::simulated_data::hit_handle_collection_type BSHC_gg = flaged_SD.get_step_hits("gg");
-		if (is_debug) std::clog << "BSCH geiger step hits # = " << BSHC_gg.size() << std::endl;
+		DT_LOG_DEBUG(logging, "BSCH geiger step hits # = " << BSHC_gg.size());
 		for (mctools::simulated_data::hit_handle_collection_type::const_iterator i = BSHC_gg.begin();
 		     i != BSHC_gg.end();
 		     i++)
