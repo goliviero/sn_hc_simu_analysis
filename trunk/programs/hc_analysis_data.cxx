@@ -218,6 +218,8 @@ int main( int  argc_ , char **argv_  )
     datatools::fetch_path_with_env(string_buffer);
 
     TFile* root_file = new TFile(string_buffer.c_str(), "RECREATE");
+    root_file->mkdir("single_calo_energy",
+		     "Single calorimeter energy distribution");
 
     // Event counter :
     int event_id    = 0;
@@ -393,7 +395,7 @@ int main( int  argc_ , char **argv_  )
 		int row = it_calo->first.get(3);
 
 		my_dss.calo_distrib_ht_TH2F->Fill(column, row);
-		my_dss.calo_ht_energy_TH1F[column]->Fill(it_calo->second.energy * 1000);
+		my_dss.calo_ht_energy_TH1F[column][row]->Fill(it_calo->second.energy * 1000);
 		total_energy+=it_calo->second.energy;
 	      }
 
@@ -441,7 +443,6 @@ int main( int  argc_ , char **argv_  )
 	ER.clear();
       } // end of reader is terminated
 
-    root_file->cd();
     my_dss.save_in_root_file(root_file);
     root_file->Close();
 

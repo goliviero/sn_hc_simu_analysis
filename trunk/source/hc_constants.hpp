@@ -21,6 +21,7 @@ struct hc_constants
 	// Calo :
   static const uint16_t NUMBER_OF_CALO_PER_COLUMN = 13;
 	static const uint16_t NUMBER_OF_CALO_COLUMNS    = 20;
+	static const uint16_t NUMBER_OF_CALO_COLUMNS_USED = 3;
 
 	// Geiger :
 	static const uint16_t NUMBER_OF_GEIGER_LAYERS = 9;

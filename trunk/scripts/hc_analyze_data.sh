@@ -79,7 +79,8 @@ file_counter=0
 
 for file in ${INPUT_FILES}
 do
-    INPUT_FILENAME=`basename ${file} .brio | basename ${file} _sorted` # .brio after $file remove extension of the input file
+    INPUT_FILENAME=`basename ${file} .brio` # .brio after basename $file remove extension of the input file
+    INPUT_FILENAME=`basename ${INPUT_FILENAME} _sorted` # _sorted after basename $INPUT_FILENAME remove extension _sorted of the input file
 
     OUTPUT_CALO_TRACKER_FILENAME="output_calo_tracker_events.brio"
     OUTPUT_ROOT_FILE="output_rootfile.root"

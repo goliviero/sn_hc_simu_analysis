@@ -58,7 +58,7 @@ public :
 
   // Calorimeter (only ht in simulation)
   // std::array<TH1F *, hc_constants::NUMBER_OF_CALO_PER_COLUMN> calo_energy_TH1F{};
-  std::array<TH1F *, hc_constants::NUMBER_OF_CALO_PER_COLUMN> calo_ht_energy_TH1F{};
+	std::array<std::array<TH1F *, hc_constants::NUMBER_OF_CALO_PER_COLUMN>, hc_constants::NUMBER_OF_CALO_COLUMNS_USED> calo_ht_energy_TH1F{{}};
   // std::array<TH1F *, hc_constants::NUMBER_OF_CALO_PER_COLUMN> calo_no_ht_energy_TH1F{};
 	//  TH2F * calo_distrib_TH2F;
   TH2F * calo_distrib_ht_TH2F;
@@ -71,8 +71,8 @@ public :
   TH1F * calo_delta_t_calo_tref_TH1F;
 
   // One calo (HT) :
-  TH1F * one_calo_energy_TH1F;
-  TH2F * one_calo_distribution_TH2F;
+  // TH1F * one_calo_energy_TH1F;
+  // TH2F * one_calo_distribution_TH2F;
 
 
   // Tracker :
