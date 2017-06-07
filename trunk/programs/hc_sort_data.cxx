@@ -152,7 +152,7 @@ int main( int  argc_ , char **argv_  )
 
     geomtools::id_selector hc_calo_selector(my_geom_manager.get_id_mgr());
     if (!calo_mapping_config.empty()) {
-      std::ifstream ifile(tracker_mapping_config);
+      std::ifstream ifile(calo_mapping_config);
       bool empty = false;
       if (ifile.peek() == std::ifstream::traits_type::eof()) empty = true;
       if (!empty) hc_calo_selector.initialize(calo_config);

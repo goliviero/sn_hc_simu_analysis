@@ -181,7 +181,7 @@ int main( int  argc_ , char **argv_  )
 
     geomtools::id_selector hc_calo_selector(my_geom_manager.get_id_mgr());
     if (!calo_mapping_config.empty()) {
-      std::ifstream ifile(tracker_mapping_config);
+      std::ifstream ifile(calo_mapping_config);
       bool empty = false;
       if (ifile.peek() == std::ifstream::traits_type::eof()) empty = true;
       if (!empty)  hc_calo_selector.initialize(calo_config);
@@ -242,7 +242,6 @@ int main( int  argc_ , char **argv_  )
 	    mctools::simulated_data flaged_SD = SD;
 
 	    // First loop on all hits to merge each calo hit in the same OM, also tag GG cells hit several times :
-
 	    std::map<geomtools::geom_id, calo_hit_summary> calo_hit_map;
 	    // If main calo hits :
 	    if (flaged_SD.has_step_hits("calo"))
@@ -258,7 +257,8 @@ int main( int  argc_ , char **argv_  )
 		    // extract the corresponding geom ID:
 		    const geomtools::geom_id & main_calo_gid = BSH.get_geom_id();
 
-		    if (hc_calo_selector.match(main_calo_gid)) {
+		    // Add in the map calorimeters only if they match selector rules (from commissioning)
+		    if (hc_calo_selector.is_initialized() && hc_calo_selector.match(main_calo_gid)) {
 
 		      bool calo_hit_is_in_map = calo_hit_map.find(main_calo_gid) != calo_hit_map.end();
 		      //int column = main_calo_gid.get(2);
@@ -290,10 +290,13 @@ int main( int  argc_ , char **argv_  )
 
 		  } // end of for i BSHC
 
-		// Check if all calo summary hit pass the threshold :
+
+		DT_LOG_DEBUG(logging, "Size of calo hit map :" << calo_hit_map.size());
+		// Check if all calo summary hit pass the threshold and remove them if not
 		for (std::map<geomtools::geom_id, calo_hit_summary>::iterator it_calo = calo_hit_map.begin();
 		     it_calo != calo_hit_map.end();)
 		  {
+		    DT_LOG_DEBUG(logging, "Energy = " << it_calo->second.energy * 1000);
 		    if (it_calo->second.energy * 1000 < calo_threshold_kev) it_calo = calo_hit_map.erase(it_calo);
 		    else it_calo++;
 		  }
@@ -348,15 +351,19 @@ int main( int  argc_ , char **argv_  )
 		      {
 			const geomtools::geom_id & geiger_gid = BSH.get_geom_id();
 
-			geiger_hit_set.insert(geiger_gid);
-			// If the last Geiger at layer 8 is hit, push back position for calorimeter association
-			if (geiger_gid.get(2) == geiger_last_layer) // last layer
-			  {
-			    collection_position_last_geiger_hit.push_back(BSH.get_position_stop());
-			  }
+			// Add in the map tracker only if they match selector rules (from commissioning)
+			if (hc_geiger_selector.is_initialized() && hc_geiger_selector.match(geiger_gid)) {
+			  geiger_hit_set.insert(geiger_gid);
+			  // If the last Geiger at layer 8 is hit, push back position for calorimeter association
+			  if (geiger_gid.get(2) == geiger_last_layer) // last layer
+			    {
+			      collection_position_last_geiger_hit.push_back(BSH.get_position_stop());
+			    }
+			} // end of selector match
 		      }
 		  } // end of for
 	      } // end of if has step hits "gg"
+
 
 	    /*******************************************************/
 	    /* Begining analysis (based on calo map and geiger set */
@@ -371,8 +378,10 @@ int main( int  argc_ , char **argv_  )
 	    // Calorimeter 'exists' only if E_calo > threshold
 	    double calo_tref;
 	    datatools::invalidate(calo_tref);
-
 	    double total_energy = 0;
+
+	    // work on calo only if the id selector is initialized :
+
 	    for (std::map<geomtools::geom_id, calo_hit_summary>::const_iterator it_calo = calo_hit_map.begin();
 		 it_calo != calo_hit_map.end();
 		 it_calo++)
@@ -382,6 +391,7 @@ int main( int  argc_ , char **argv_  )
 
 		int column = it_calo->first.get(2);
 		int row = it_calo->first.get(3);
+
 		my_dss.calo_distrib_ht_TH2F->Fill(column, row);
 		my_dss.calo_ht_energy_TH1F[column]->Fill(it_calo->second.energy * 1000);
 		total_energy+=it_calo->second.energy;
@@ -389,8 +399,22 @@ int main( int  argc_ , char **argv_  )
 
 	    my_dss.calo_ht_total_energy_TH1F->Fill(total_energy * 1000);
 
-	    std::bitset<hc_constants::NUMBER_OF_GEIGER_LAYERS> layer_projection = 0x0;
+	    // Second loop for timing Tcalo_X - Tcalo_ref
+	    for (std::map<geomtools::geom_id, calo_hit_summary>::const_iterator it_calo = calo_hit_map.begin();
+		 it_calo != calo_hit_map.end();
+		 it_calo++)
+	      {
+		double delta_t = it_calo->second.time - calo_tref;
+		if (delta_t != 0) my_dss.calo_delta_t_calo_tref_TH1F->Fill(delta_t);
+	      }
 
+
+
+
+	    // work on Geiger only if the id selector is initialized :
+
+
+	    std::bitset<hc_constants::NUMBER_OF_GEIGER_LAYERS> layer_projection = 0x0;
 	    // For each Geiger cell, add it in the histogram
 	    for (std::set<geomtools::geom_id>::const_iterator it_geiger = geiger_hit_set.begin();
 		 it_geiger != geiger_hit_set.end();
@@ -407,148 +431,8 @@ int main( int  argc_ , char **argv_  )
 
 	    if (full_track_event) DT_LOG_DEBUG(logging, "Full track event !");
 
-	    // // Two calos only :
-	    // if (number_of_main_calo == 2)
-	    //   {
-	    // 	calo_hit_summary calo_1 = calo_hit_map.begin()->second;
-	    // 	calo_hit_summary calo_2 = calo_hit_map.rbegin()->second;
-	    // 	if (is_debug) std::clog << "Calo 1 GID : " << calo_1.geom_id << " Energy : " << calo_1.energy << " Time : " << calo_1.time << std::endl;
-	    // 	if (is_debug) std::clog << "Calo 2 GID : " << calo_2.geom_id << " Energy : " << calo_2.energy << " Time : " << calo_2.time << std::endl;
-	    // 	double delta_time_2_calo = std::abs(calo_1.time - calo_2.time);
-	    // 	double calo_energy_min = calo_1.energy;
-	    // 	if (calo_energy_min > calo_2.energy) calo_energy_min = calo_2.energy;
-	    // 	double calo_energy_max = calo_1.energy;
-	    // 	if (calo_energy_max < calo_2.energy) calo_energy_max = calo_2.energy;
-	    // 	double calo_energy_total = calo_energy_min + calo_energy_max;
 
-	    // 	for (std::map<geomtools::geom_id, calo_hit_summary>::const_iterator it_calo = calo_hit_map.begin(); it_calo != calo_hit_map.end(); it_calo++)
-	    // 	  {
-	    // 	    int column = it_calo->first.get(2);
-	    // 	    int row = it_calo->first.get(3);
-	    // 	    two_calo_distribution_TH2F->Fill(column, row);
-	    // 	  }
 
-	    // 	for (std::set<geomtools::geom_id>::const_iterator it_geiger = geiger_hit_set.begin(); it_geiger != geiger_hit_set.end(); it_geiger++)
-	    // 	  {
-	    // 	    int layer = it_geiger->get(2);
-	    // 	    int row   = it_geiger->get(3);
-	    // 	    two_calo_geiger_distribution_TH2F->Fill(row, layer);
-	    // 	  }
-
-	    // 	// 2 calos no track at all :
-	    // 	if (number_of_layer == 0)
-	    // 	  {
-	    // 	    two_calo_no_track_energy_min_TH1F->Fill(calo_energy_min * 1000);
-	    // 	    two_calo_no_track_energy_max_TH1F->Fill(calo_energy_max * 1000);
-	    // 	    two_calo_no_track_total_energy_TH1F->Fill(calo_energy_total * 1000);
-	    // 	    two_calo_no_track_delta_time_TH1F->Fill(delta_time_2_calo);
-
-	    // 	    for (std::map<geomtools::geom_id, calo_hit_summary>::const_iterator it_calo = calo_hit_map.begin(); it_calo != calo_hit_map.end(); it_calo++)
-	    // 	      {
-	    // 		int column = it_calo->first.get(2);
-	    // 		int row = it_calo->first.get(3);
-	    // 		two_calo_no_track_distribution_TH2F->Fill(column, row);
-	    // 	      }
-	    // 	  }
-
-	    // 	// 2 calos one track :
-	    // 	if (full_track_event)
-	    // 	  {
-	    // 	    int side = 1;
-	    // 	    int column_1 = calo_1.geom_id.get(2);
-	    // 	    int row_1 = calo_1.geom_id.get(3);
-	    // 	    int column_2 = calo_2.geom_id.get(2);
-	    // 	    int row_2 = calo_2.geom_id.get(3);
-
-	    // 	    double calo_1_zposition = calo_locator.get_row_z(side, row_1);
-	    // 	    double calo_2_zposition = calo_locator.get_row_z(side, row_2);
-
-	    // 	    for (unsigned int i = 0; i < collection_position_last_geiger_hit.size(); i++)
-	    // 	      {
-	    // 		if (calo_1_zposition > collection_position_last_geiger_hit[i].z() - 185
-	    // 		    && calo_1_zposition < collection_position_last_geiger_hit[i].z() + 185)
-	    // 		  {
-	    // 		    if (is_debug)
-	    // 		      {
-	    // 			std::clog << "Calorimeter and Geiger association" << std::endl;
-	    // 			std::clog << "Calo 1 Z: " << calo_1_zposition << std::endl;
-	    // 			std::clog << "GG hit #"<< i << ' ' << collection_position_last_geiger_hit[i].x()
-	    // 				  << ' ' << collection_position_last_geiger_hit[i].y()
-	    // 				  << ' ' << collection_position_last_geiger_hit[i].z() << std::endl;
-	    // 		      }
-	    // 		    calo_1.geiger_association = true;
-	    // 		  }
-
-	    // 		if (calo_2_zposition > collection_position_last_geiger_hit[i].z() - 185
-	    // 		    && calo_2_zposition < collection_position_last_geiger_hit[i].z() + 185)
-	    // 		  {
-	    // 		    if (is_debug)
-	    // 		      {
-	    // 			std::clog << "Calorimeter and Geiger association" << std::endl;
-	    // 			std::clog << "Calo 2 Z: " << calo_2_zposition << std::endl;
-	    // 			std::clog << "GG hit #"<< i << ' ' << collection_position_last_geiger_hit[i].x()
-	    // 				  << ' ' << collection_position_last_geiger_hit[i].y()
-	    // 				  << ' ' << collection_position_last_geiger_hit[i].z() << std::endl;
-	    // 		      }
-	    // 		    calo_2.geiger_association = true;
-	    // 		  }
-	    // 	      }
-
-	    // 	    if (calo_1.geiger_association || calo_2.geiger_association)
-	    // 	      {
-	    // 		two_calo_one_track_energy_min_TH1F->Fill(calo_energy_min * 1000);
-	    // 		two_calo_one_track_energy_max_TH1F->Fill(calo_energy_max * 1000);
-	    // 		two_calo_one_track_total_energy_TH1F->Fill(calo_energy_total * 1000);
-	    // 		two_calo_one_track_delta_time_TH1F->Fill(delta_time_2_calo);
-
-	    // 		if (calo_1.geiger_association)
-	    // 		  {
-	    // 		    two_calo_one_track_electron_energy_TH1F->Fill(calo_1.energy * 1000);
-	    // 		    two_calo_one_track_calo_interaction_distribution_TH2F->Fill(calo_1.left_most_hit_position.getX(), calo_1.left_most_hit_position.getZ());
-	    // 		    if (is_debug) std::clog << "Calo 1  X = " << calo_1.left_most_hit_position.getX()
-	    // 					    << " Y = " << calo_1.left_most_hit_position.getY()
-	    // 					    << " Z = " << calo_1.left_most_hit_position.getZ() << std::endl;
-
-	    // 		  }
-	    // 		else two_calo_one_track_gamma_energy_TH1F ->Fill(calo_1.energy * 1000);
-
-	    // 		if (calo_2.geiger_association)
-	    // 		  {
-	    // 		    two_calo_one_track_electron_energy_TH1F->Fill(calo_2.energy * 1000);
-	    // 		    two_calo_one_track_calo_interaction_distribution_TH2F->Fill(calo_2.left_most_hit_position.getX(), calo_2.left_most_hit_position.getZ());
-	    // 		    if (is_debug) std::clog << "Calo 2  X = " << calo_2.left_most_hit_position.getX()
-	    // 					    << " Y = " << calo_2.left_most_hit_position.getY()
-	    // 					    << " Z = " << calo_2.left_most_hit_position.getZ() << std::endl;
-	    // 		  }
-	    // 		else two_calo_one_track_gamma_energy_TH1F ->Fill(calo_2.energy * 1000);
-
-	    // 		for (std::map<geomtools::geom_id, calo_hit_summary>::const_iterator it_calo = calo_hit_map.begin(); it_calo != calo_hit_map.end(); it_calo++)
-	    // 		  {
-	    // 		    int column = it_calo->first.get(2);
-	    // 		    int row = it_calo->first.get(3);
-	    // 		    two_calo_one_track_distribution_TH2F->Fill(column, row);
-	    // 		  }
-
-	    // 		for (std::set<geomtools::geom_id>::const_iterator it_geiger = geiger_hit_set.begin(); it_geiger != geiger_hit_set.end(); it_geiger++)
-	    // 		  {
-	    // 		    int layer = it_geiger->get(2);
-	    // 		    int row   = it_geiger->get(3);
-	    // 		    two_calo_one_track_geiger_distribution_TH2F->Fill(row, layer);
-	    // 		  }
-
-	    // 		// Calcul the angular between source vertex and middle calorimeter hits :
-	    // 		geomtools::vector_3d vertex_position = flaged_SD.get_vertex();
-	    // 		geomtools::vector_3d calo_1_position = calo_locator.get_block_position(side, column_1, row_1);
-	    // 		geomtools::vector_3d calo_2_position = calo_locator.get_block_position(side, column_2, row_2);
-
-	    // 		double angle_calo_1 = (180.0 / 3.14159265358979323846) * vertex_position.angle(calo_1_position);
-	    // 		double angle_calo_2 = (180.0 / 3.14159265358979323846) * vertex_position.angle(calo_2_position);
-	    // 		two_calo_one_track_angle_TH1F->Fill(angle_calo_1);
-	    // 		two_calo_one_track_angle_TH1F->Fill(angle_calo_2);
-
-	    // 	      } // end of calo geiger association
-	    // 	  } // end of is full track
-	    //   } // end of 2 calos
 
 	  } // end of if ER has flaged_SD_bank_label
 

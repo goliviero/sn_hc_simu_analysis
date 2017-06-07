@@ -91,7 +91,6 @@ public :
 	TH1F * calo_tracker_delta_t_cathode_tref_TH1F;
 	TH1F * calo_tracker_delta_t_anode_cathode_same_hit_TH1F;
 
-
 };
 
 

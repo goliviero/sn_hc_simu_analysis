@@ -77,7 +77,7 @@ void data_statistics_simu::initialize()
 
     string_buffer = "calo_ht_energy_" + std::to_string(icalo);
     calo_ht_energy_TH1F[icalo] = new TH1F(string_buffer.c_str(),
-				       Form("Calorimeter HT energy, row %i", icalo),
+				       Form("Calorimeter HT energy, calo #%i", icalo),
 				       1000, 0, 3000);
 
     // string_buffer = "calo_no_ht_energy_" + std::to_string(icalo);
@@ -123,7 +123,7 @@ void data_statistics_simu::initialize()
   string_buffer = "calo_delta_t_calo_tref_TH1F";
   calo_delta_t_calo_tref_TH1F = new TH1F(string_buffer.c_str(),
 					 Form("Calo events 2+ calo HT, DT(calo_X - calo_tref)"),
-					 1000, 0, 3000);
+					 20, 0, 100);
 
   string_buffer = "tracker_total_distribution_TH2F";
   tracker_total_distribution_TH2F = new TH2F(string_buffer.c_str(),
