@@ -85,6 +85,9 @@ do
 
     LOG_FILE=${LOG_DIR}/${INPUT_FILENAME}_sorted.log
 
+    echo "Mapping calo :" ${HC_CALO_MAPPING_CONFIG_FILE}
+    echo "Mapping tracker :" ${HC_TRACKER_MAPPING_CONFIG_FILE}
+
     echo "Starting process..."
     echo "Processing..."
 
