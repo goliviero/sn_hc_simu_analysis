@@ -249,7 +249,7 @@ int main( int  argc_ , char **argv_  )
 	    if (flaged_SD.has_step_hits("calo"))
 	      {
 		mctools::simulated_data::hit_handle_collection_type BSHC = flaged_SD.get_step_hits("calo");
-		DT_LOG_DEBUG(logging, "BSCH calo step hits # = " << BSHC.size());
+		DT_LOG_TRACE(logging, "BSCH calo step hits # = " << BSHC.size());
 
 		for (mctools::simulated_data::hit_handle_collection_type::const_iterator i = BSHC.begin();
 		     i != BSHC.end();
@@ -293,12 +293,12 @@ int main( int  argc_ , char **argv_  )
 		  } // end of for i BSHC
 
 
-		DT_LOG_DEBUG(logging, "Size of calo hit map :" << calo_hit_map.size());
+		DT_LOG_TRACE(logging, "Size of calo hit map :" << calo_hit_map.size());
 		// Check if all calo summary hit pass the threshold and remove them if not
 		for (std::map<geomtools::geom_id, calo_hit_summary>::iterator it_calo = calo_hit_map.begin();
 		     it_calo != calo_hit_map.end();)
 		  {
-		    DT_LOG_DEBUG(logging, "Energy = " << it_calo->second.energy * 1000);
+		    DT_LOG_TRACE(logging, "Energy = " << it_calo->second.energy * 1000);
 		    if (it_calo->second.energy * 1000 < calo_threshold_kev) it_calo = calo_hit_map.erase(it_calo);
 		    else it_calo++;
 		  }
@@ -339,7 +339,7 @@ int main( int  argc_ , char **argv_  )
 		  } // end of ihit
 
 		mctools::simulated_data::hit_handle_collection_type BSHC_gg = flaged_SD.get_step_hits("gg");
-		DT_LOG_DEBUG(logging, "BSCH geiger step hits # = " << BSHC_gg.size());
+		DT_LOG_TRACE(logging, "BSCH geiger step hits # = " << BSHC_gg.size());
 		for (mctools::simulated_data::hit_handle_collection_type::const_iterator i = BSHC_gg.begin();
 		     i != BSHC_gg.end();
 		     i++)
@@ -382,7 +382,9 @@ int main( int  argc_ , char **argv_  )
 	    datatools::invalidate(calo_tref);
 	    double total_energy = 0;
 
-	    // work on calo only if the id selector is initialized :
+	    bool is_calo = false;
+	    bool is_tracker = false;
+
 
 	    for (std::map<geomtools::geom_id, calo_hit_summary>::const_iterator it_calo = calo_hit_map.begin();
 		 it_calo != calo_hit_map.end();
@@ -397,6 +399,8 @@ int main( int  argc_ , char **argv_  )
 		my_dss.calo_distrib_ht_TH2F->Fill(column, row);
 		my_dss.calo_ht_energy_TH1F[column][row]->Fill(it_calo->second.energy * 1000);
 		total_energy+=it_calo->second.energy;
+
+		is_calo = true;
 	      }
 
 	    my_dss.calo_ht_total_energy_TH1F->Fill(total_energy * 1000);
@@ -412,10 +416,6 @@ int main( int  argc_ , char **argv_  )
 
 
 
-
-	    // work on Geiger only if the id selector is initialized :
-
-
 	    std::bitset<hc_constants::NUMBER_OF_GEIGER_LAYERS> layer_projection = 0x0;
 	    // For each Geiger cell, add it in the histogram
 	    for (std::set<geomtools::geom_id>::const_iterator it_geiger = geiger_hit_set.begin();
@@ -427,12 +427,15 @@ int main( int  argc_ , char **argv_  )
 		// if (is_debug) std::clog << "Layer  = " << layer << " Row = " << row << std::endl;
 		my_dss.tracker_total_distribution_TH2F->Fill(row, layer);
 		layer_projection.set(layer, true);
+		is_tracker = true;
 	      }
+
 	    int number_of_layer = layer_projection.count();
 	    if (number_of_layer == hc_constants::NUMBER_OF_GEIGER_LAYERS) full_track_event = true;
 
 	    if (full_track_event) DT_LOG_DEBUG(logging, "Full track event !");
 
+	    if (is_calo && is_tracker) calo_tracker_events_writer.process(ER);
 
 
 
