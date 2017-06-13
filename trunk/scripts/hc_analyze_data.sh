@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# hc_analyse_data.sh
+# hc_analyze_data.sh
+
+do_falaisebrew_setup
 
 debug=1
 
 echo "Starting..." >&2
 
-SW_PATH="/home/goliviero/software/Falaise/Analysis/sn_hc_simu_analysis/build/BuildProducts/bin"
+SW_PATH="${SW_WORK_DIR}/Analysis/sn_hc_simu_analysis/build/BuildProducts/bin"
 SW_NAME="hc_analysis_data"
 
 function usage(){
@@ -56,11 +58,18 @@ done
 echo "RUN_NUMBER=" $run_number
 
 
-INPUT_RUN_DIR="${DATA_NEMO_PERSO_DIR}/half_commissioning_simu/run_${run_number}"
+# INPUT PATH : To be define for CCLyon :
+INPUT_RUN_DIR="UNDEFINED"
+###
+
+
 INPUT_SORTED_DIR="${INPUT_RUN_DIR}/sorted_data/match_rules"
 INPUT_FILES=`ls -d ${INPUT_SORTED_DIR}/*.brio`
 
-ANALYZED_OUTPUT_PATH="${DATA_NEMO_PERSO_DIR}/half_commissioning_simu/run_${run_number}/analyzed_data"
+# OUTPUT PATH : To be define for CCLyon :
+ANALYZED_OUTPUT_PATH="UNDEFINED"
+###
+
 ANALYZED_ROOT_OUTPUT_PATH=${ANALYZED_OUTPUT_PATH}/root_files
 ANALYZED_BRIO_OUTPUT_PATH=${ANALYZED_OUTPUT_PATH}/brio_files
 LOG_DIR=${ANALYZED_OUTPUT_PATH}/log_files.d
